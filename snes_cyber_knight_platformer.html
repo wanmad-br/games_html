@@ -240,25 +240,38 @@ const Sprites = {
     init() {
         // Player Sprite Sheet (Stand, Run1, Run2, Jump, Attack)
         this.player = createPixelTexture(80, 16, (ctx) => {
-            const colors = { b: '#1a1c23', g: '#00ffcc', r: '#ff0055', w: '#ffffff', s: '#ffccaa' };
+            const colors = { outline: '#101525', armor: '#31506a', shade: '#203348', light: '#80c6d0', glow: '#63ffe0', trim: '#ff5577', white: '#f3f6df' };
             
             // Helper to draw 16x16 frames
             const drawFrame = (ox, pose) => {
-                // Armor Body
-                ctx.fillStyle = colors.b; ctx.fillRect(ox + 4, 4, 8, 10);
-                ctx.fillStyle = colors.g; ctx.fillRect(ox + 5, 5, 6, 4); // Visor
-                ctx.fillStyle = colors.w; ctx.fillRect(ox + 6, 6, 2, 1);
-                
-                // Limbs based on pose
-                ctx.fillStyle = colors.r;
+                // Helmet, visor and segmented armor
+                ctx.fillStyle = colors.outline; ctx.fillRect(ox + 4, 1, 8, 7);
+                ctx.fillRect(ox + 3, 3, 10, 4);
+                ctx.fillStyle = colors.armor; ctx.fillRect(ox + 5, 2, 6, 4);
+                ctx.fillStyle = colors.light; ctx.fillRect(ox + 5, 2, 2, 2);
+                ctx.fillStyle = colors.glow; ctx.fillRect(ox + 7, 4, 5, 2);
+                ctx.fillStyle = colors.white; ctx.fillRect(ox + 8, 4, 2, 1);
+                ctx.fillStyle = colors.outline; ctx.fillRect(ox + 5, 8, 6, 6);
+                ctx.fillStyle = colors.armor; ctx.fillRect(ox + 6, 8, 4, 4);
+                ctx.fillStyle = colors.light; ctx.fillRect(ox + 6, 8, 3, 1);
+                ctx.fillStyle = colors.trim; ctx.fillRect(ox + 4, 9, 2, 3); ctx.fillRect(ox + 10, 9, 2, 3);
+                ctx.fillStyle = colors.outline; ctx.fillRect(ox + 3, 8, 2, 5); ctx.fillRect(ox + 11, 8, 2, 5);
+                ctx.fillStyle = colors.armor; ctx.fillRect(ox + 3, 9, 2, 2); ctx.fillRect(ox + 11, 9, 2, 2);
+
+                // Boots shift between animation poses
+                ctx.fillStyle = colors.outline;
                 if (pose === 'stand') {
-                    ctx.fillRect(ox + 4, 12, 3, 4); ctx.fillRect(ox + 9, 12, 3, 4);
+                    ctx.fillRect(ox + 5, 12, 3, 4); ctx.fillRect(ox + 9, 12, 3, 4);
+                    ctx.fillStyle = colors.trim; ctx.fillRect(ox + 5, 14, 3, 2); ctx.fillRect(ox + 9, 14, 3, 2);
                 } else if (pose === 'run1') {
-                    ctx.fillRect(ox + 2, 12, 4, 4); ctx.fillRect(ox + 9, 11, 4, 4);
+                    ctx.fillRect(ox + 2, 12, 4, 4); ctx.fillRect(ox + 9, 11, 4, 5);
+                    ctx.fillStyle = colors.trim; ctx.fillRect(ox + 2, 14, 4, 2); ctx.fillRect(ox + 9, 14, 4, 2);
                 } else if (pose === 'run2') {
-                    ctx.fillRect(ox + 9, 12, 4, 4); ctx.fillRect(ox + 3, 11, 4, 4);
+                    ctx.fillRect(ox + 9, 12, 4, 4); ctx.fillRect(ox + 3, 11, 4, 5);
+                    ctx.fillStyle = colors.trim; ctx.fillRect(ox + 9, 14, 4, 2); ctx.fillRect(ox + 3, 14, 4, 2);
                 } else if (pose === 'jump') {
-                    ctx.fillRect(ox + 3, 10, 4, 3); ctx.fillRect(ox + 8, 10, 4, 3);
+                    ctx.fillRect(ox + 2, 10, 5, 4); ctx.fillRect(ox + 9, 10, 5, 4);
+                    ctx.fillStyle = colors.trim; ctx.fillRect(ox + 2, 12, 4, 2); ctx.fillRect(ox + 10, 12, 4, 2);
                 }
             };
 
@@ -269,16 +282,24 @@ const Sprites = {
 
             // Attack frame (Frame 5)
             drawFrame(64, 'stand');
-            ctx.fillStyle = colors.g;
-            ctx.fillRect(76, 6, 4, 2); // Blaster flash
+            ctx.fillStyle = colors.outline; ctx.fillRect(74, 7, 5, 3);
+            ctx.fillStyle = colors.armor; ctx.fillRect(74, 7, 4, 2);
+            ctx.fillStyle = colors.glow; ctx.fillRect(78, 6, 2, 4);
+            ctx.fillStyle = colors.white; ctx.fillRect(79, 7, 1, 2);
         });
 
         // Enemy Runner Sprite (Cyber Slime / Bug)
         this.enemyRunner = createPixelTexture(32, 16, (ctx) => {
             const drawBug = (ox, f) => {
-                ctx.fillStyle = '#ff0055'; ctx.fillRect(ox + 2, 4 + f, 12, 8);
-                ctx.fillStyle = '#ffaa00'; ctx.fillRect(ox + 4, 6 + f, 3, 3);
-                ctx.fillStyle = '#330011'; ctx.fillRect(ox + 1, 12 - f, 4, 3); ctx.fillRect(ox + 11, 12 - f, 4, 3);
+                ctx.fillStyle = '#210f27'; ctx.fillRect(ox + 2, 6 + f, 12, 8 - f);
+                ctx.fillRect(ox + 4, 4 + f, 8, 9 - f);
+                ctx.fillStyle = '#9b2856'; ctx.fillRect(ox + 4, 5 + f, 8, 6 - f);
+                ctx.fillStyle = '#f05b78'; ctx.fillRect(ox + 5, 5 + f, 5, 2);
+                ctx.fillStyle = '#451832'; ctx.fillRect(ox + 6, 8 + f, 6, 3 - f);
+                ctx.fillStyle = '#ffe78a'; ctx.fillRect(ox + 4, 7 + f, 2, 2);
+                ctx.fillStyle = '#fff6d5'; ctx.fillRect(ox + 4, 7 + f, 1, 1);
+                ctx.fillStyle = '#210f27'; ctx.fillRect(ox + 1, 12 - f, 4, 3); ctx.fillRect(ox + 11, 12 - f, 4, 3);
+                ctx.fillStyle = '#f05b78'; ctx.fillRect(ox + 2, 12 - f, 2, 1); ctx.fillRect(ox + 12, 12 - f, 2, 1);
             };
             drawBug(0, 0);
             drawBug(16, 1);
@@ -287,9 +308,15 @@ const Sprites = {
         // Enemy Flyer Sprite
         this.enemyFlyer = createPixelTexture(32, 16, (ctx) => {
             const drawFly = (ox, wingY) => {
-                ctx.fillStyle = '#9900ff'; ctx.fillRect(ox + 4, 5, 8, 6);
-                ctx.fillStyle = '#00ffff'; ctx.fillRect(ox + 2, wingY, 12, 2); // Wings
-                ctx.fillStyle = '#ffff00'; ctx.fillRect(ox + 6, 7, 4, 2); // Eye
+                ctx.fillStyle = '#16152d'; ctx.fillRect(ox + 4, 5, 8, 7);
+                ctx.fillRect(ox + 1, 7, 14, 3);
+                ctx.fillStyle = '#4451a1'; ctx.fillRect(ox + 5, 5, 6, 5);
+                ctx.fillStyle = '#8898e8'; ctx.fillRect(ox + 6, 5, 3, 2);
+                ctx.fillStyle = '#39d9df'; ctx.fillRect(ox + 2, wingY, 4, 3); ctx.fillRect(ox + 10, wingY, 4, 3);
+                ctx.fillStyle = '#a4ffff'; ctx.fillRect(ox + 3, wingY, 2, 1); ctx.fillRect(ox + 11, wingY, 2, 1);
+                ctx.fillStyle = '#ffed91'; ctx.fillRect(ox + 7, 8, 3, 2);
+                ctx.fillStyle = '#fff8dc'; ctx.fillRect(ox + 7, 8, 1, 1);
+                ctx.fillStyle = '#39d9df'; ctx.fillRect(ox + 7, 12, 2, 2);
             };
             drawFly(0, 3);
             drawFly(16, 1);
@@ -309,23 +336,38 @@ const Sprites = {
 
         // Environment Tileset
         this.tileset = createPixelTexture(64, 16, (ctx) => {
-            // Grass / Metal Top Platform
-            ctx.fillStyle = '#112233'; ctx.fillRect(0, 0, 16, 16);
-            ctx.fillStyle = '#00ffcc'; ctx.fillRect(0, 0, 16, 3);
-            ctx.fillStyle = '#00aa88'; ctx.fillRect(0, 3, 16, 1);
+            // Reinforced platform with illuminated edge and inset machinery
+            ctx.fillStyle = '#101b2c'; ctx.fillRect(0, 0, 16, 16);
+            ctx.fillStyle = '#39e6c6'; ctx.fillRect(0, 0, 16, 2);
+            ctx.fillStyle = '#167f83'; ctx.fillRect(0, 2, 16, 2);
+            ctx.fillStyle = '#263d53'; ctx.fillRect(1, 5, 14, 9);
+            ctx.fillStyle = '#182b40'; ctx.fillRect(2, 6, 12, 6);
+            ctx.fillStyle = '#527184'; ctx.fillRect(2, 5, 4, 1); ctx.fillRect(10, 5, 4, 1);
+            ctx.fillStyle = '#35b8ad'; ctx.fillRect(3, 8, 2, 2); ctx.fillRect(11, 8, 2, 2);
+            ctx.fillStyle = '#111c2c'; ctx.fillRect(0, 14, 16, 2);
+            ctx.fillStyle = '#ff5577'; ctx.fillRect(7, 14, 2, 1);
 
-            // Brick Block
-            ctx.fillStyle = '#442255'; ctx.fillRect(16, 0, 16, 16);
-            ctx.fillStyle = '#663377'; ctx.fillRect(17, 1, 14, 14);
-            ctx.fillStyle = '#221133'; ctx.fillRect(16, 8, 16, 1); ctx.fillRect(24, 0, 1, 8); ctx.fillRect(20, 8, 1, 8);
+            // Layered industrial wall block
+            ctx.fillStyle = '#211c38'; ctx.fillRect(16, 0, 16, 16);
+            ctx.fillStyle = '#55406e'; ctx.fillRect(17, 1, 14, 13);
+            ctx.fillStyle = '#78618a'; ctx.fillRect(18, 2, 12, 2);
+            ctx.fillStyle = '#352b50'; ctx.fillRect(18, 5, 12, 7);
+            ctx.fillStyle = '#191b31'; ctx.fillRect(16, 8, 16, 2);
+            ctx.fillStyle = '#9a527d'; ctx.fillRect(17, 7, 6, 1); ctx.fillRect(25, 10, 6, 1);
+            ctx.fillStyle = '#ff647f'; ctx.fillRect(28, 3, 2, 2);
+            ctx.fillStyle = '#22243a'; ctx.fillRect(18, 13, 3, 2); ctx.fillRect(27, 13, 3, 2);
 
-            // Hazard Spike
-            ctx.fillStyle = '#1a1c23'; ctx.fillRect(32, 0, 16, 16);
-            ctx.fillStyle = '#ff0055';
+            // Warning spikes on a bolted hazard plate
+            ctx.fillStyle = '#182033'; ctx.fillRect(32, 0, 16, 16);
+            ctx.fillStyle = '#6b274b'; ctx.fillRect(32, 13, 16, 3);
+            ctx.fillStyle = '#ff5577'; ctx.fillRect(33, 12, 14, 1);
+            ctx.fillStyle = '#ff7890';
             ctx.beginPath();
-            ctx.moveTo(32, 16); ctx.lineTo(36, 4); ctx.lineTo(40, 16);
-            ctx.moveTo(40, 16); ctx.lineTo(44, 4); ctx.lineTo(48, 16);
+            ctx.moveTo(32, 13); ctx.lineTo(36, 4); ctx.lineTo(40, 13);
+            ctx.moveTo(40, 13); ctx.lineTo(44, 4); ctx.lineTo(48, 13);
             ctx.fill();
+            ctx.fillStyle = '#fff0bd'; ctx.fillRect(35, 6, 1, 3); ctx.fillRect(43, 6, 1, 3);
+            ctx.fillStyle = '#101525'; ctx.fillRect(35, 13, 2, 2); ctx.fillRect(43, 13, 2, 2);
         });
     }
 };
@@ -694,40 +736,96 @@ class Game {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // 1. PARALLAX BACKGROUND LAYER 1 (Sky Gradient & Stars)
-        ctx.fillStyle = '#0b091a';
+        // 1. Pixel sky and distant stars
+        ctx.fillStyle = '#090f22';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-        ctx.fillStyle = '#181435';
-        ctx.fillRect(0, 0, CANVAS_WIDTH, 180);
-
-        // Static Stars
-        ctx.fillStyle = '#6c5eb5';
-        for (let i = 0; i < 30; i++) {
-            let sx = (i * 37) % CANVAS_WIDTH;
-            let sy = (i * 13) % 120;
-            ctx.fillRect(sx, sy, 1, 1);
+        ctx.fillStyle = '#17203a';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, 112);
+        ctx.fillStyle = '#202342';
+        ctx.fillRect(0, 112, CANVAS_WIDTH, 54);
+        for (let i = 0; i < 48; i++) {
+            const sx = (i * 83 + 17) % CANVAS_WIDTH;
+            const sy = (i * 47 + 9) % 104;
+            ctx.fillStyle = i % 5 === 0 ? '#91f5e5' : (i % 3 === 0 ? '#d2c8a1' : '#7183b5');
+            ctx.fillRect(sx, sy, i % 7 === 0 ? 2 : 1, i % 7 === 0 ? 2 : 1);
+            if (i % 11 === 0) {
+                ctx.fillStyle = '#4d5b87';
+                ctx.fillRect(sx - 2, sy + 1, 5, 1);
+            }
         }
 
-        // 2. PARALLAX LAYER 2 (Distant SNES Mountains)
-        ctx.fillStyle = '#251d54';
-        const bg2Offset = (this.cameraX * 0.2) % 128;
-        for (let i = -1; i < 5; i++) {
-            let mx = i * 128 - bg2Offset;
+        // Pixel moon with a stepped halo
+        ctx.fillStyle = '#343b62';
+        ctx.fillRect(365, 31, 48, 2); ctx.fillRect(359, 37, 60, 2);
+        ctx.fillRect(365, 69, 48, 2); ctx.fillRect(359, 63, 60, 2);
+        ctx.fillStyle = '#c9c6a2';
+        ctx.fillRect(373, 35, 32, 2); ctx.fillRect(367, 41, 44, 22);
+        ctx.fillRect(373, 63, 32, 2); ctx.fillRect(379, 31, 20, 2); ctx.fillRect(379, 71, 20, 2);
+        ctx.fillStyle = '#e8dfb8';
+        ctx.fillRect(373, 41, 30, 18); ctx.fillRect(379, 37, 20, 26);
+        ctx.fillStyle = '#a8a784';
+        ctx.fillRect(379, 45, 6, 4); ctx.fillRect(393, 53, 7, 4); ctx.fillRect(387, 37, 4, 3);
+
+        // 2. Distant mountain range
+        const bg2Offset = (this.cameraX * 0.18) % 128;
+        for (let i = -1; i < 6; i++) {
+            const mx = i * 128 - bg2Offset;
+            ctx.fillStyle = '#25294d';
             ctx.beginPath();
-            ctx.moveTo(mx, 180);
-            ctx.lineTo(mx + 64, 110);
-            ctx.lineTo(mx + 128, 180);
+            ctx.moveTo(mx, 183); ctx.lineTo(mx + 27, 147); ctx.lineTo(mx + 43, 157);
+            ctx.lineTo(mx + 70, 116); ctx.lineTo(mx + 91, 150); ctx.lineTo(mx + 106, 137);
+            ctx.lineTo(mx + 128, 180); ctx.lineTo(mx + 128, 190); ctx.lineTo(mx, 190);
+            ctx.fill();
+            ctx.fillStyle = '#565477';
+            ctx.beginPath();
+            ctx.moveTo(mx + 57, 136); ctx.lineTo(mx + 70, 116); ctx.lineTo(mx + 83, 137);
+            ctx.lineTo(mx + 76, 132); ctx.lineTo(mx + 70, 137); ctx.lineTo(mx + 65, 131);
+            ctx.fill();
+            ctx.fillStyle = '#35345e';
+            ctx.beginPath();
+            ctx.moveTo(mx + 11, 177); ctx.lineTo(mx + 27, 147); ctx.lineTo(mx + 43, 157);
+            ctx.lineTo(mx + 32, 154); ctx.lineTo(mx + 25, 163); ctx.lineTo(mx + 20, 159);
             ctx.fill();
         }
 
-        // 3. PARALLAX LAYER 3 (Cyber City / Forest Silhouette)
-        ctx.fillStyle = '#113344';
-        const bg3Offset = (this.cameraX * 0.5) % 64;
+        // 3. Parallax cyber-city with lit windows and rooftop aerials
+        const bg3Offset = (this.cameraX * 0.42) % 64;
         for (let i = -1; i < 10; i++) {
-            let bx = i * 64 - bg3Offset;
-            ctx.fillRect(bx + 4, 130, 24, 50);
-            ctx.fillRect(bx + 36, 110, 20, 70);
+            const bx = i * 64 - bg3Offset;
+            const heights = [43, 61, 50, 70, 46, 58, 76, 48];
+            const leftHeight = heights[((i % heights.length) + heights.length) % heights.length];
+            const rightHeight = heights[((i + 3) % heights.length + heights.length) % heights.length];
+            const buildings = [
+                { x: bx + 3, y: 180 - leftHeight, w: 25, h: leftHeight, color: '#152c43' },
+                { x: bx + 35, y: 180 - rightHeight, w: 23, h: rightHeight, color: '#123344' }
+            ];
+            buildings.forEach((building, buildingIndex) => {
+                ctx.fillStyle = '#0c182d';
+                ctx.fillRect(building.x - 2, building.y - 2, building.w + 4, building.h + 2);
+                ctx.fillStyle = building.color;
+                ctx.fillRect(building.x, building.y, building.w, building.h);
+                ctx.fillStyle = buildingIndex === 0 ? '#31506a' : '#27616a';
+                ctx.fillRect(building.x, building.y, building.w, 2);
+                ctx.fillStyle = '#101f36';
+                ctx.fillRect(building.x + 3, building.y + 4, 2, building.h - 6);
+                for (let wy = building.y + 6; wy < 177; wy += 9) {
+                    for (let wx = building.x + 8; wx < building.x + building.w - 2; wx += 7) {
+                        const lit = (Math.floor(wx + wy + i * 13) % 4) !== 0;
+                        ctx.fillStyle = lit ? ((wx + wy) % 3 === 0 ? '#d6ad70' : '#48c4b4') : '#17243a';
+                        ctx.fillRect(wx, wy, 3, 4);
+                    }
+                }
+                if (buildingIndex === 1) {
+                    ctx.fillStyle = '#647b91';
+                    ctx.fillRect(building.x + 10, building.y - 7, 2, 7);
+                    ctx.fillRect(building.x + 7, building.y - 4, 8, 1);
+                    ctx.fillStyle = '#ff647f';
+                    ctx.fillRect(building.x + 10, building.y - 9, 2, 2);
+                }
+            });
         }
+        ctx.fillStyle = '#36b9ac';
+        ctx.fillRect(0, 178, CANVAS_WIDTH, 1);
 
         // --- WORLD TRANSFORM (Camera Shift) ---
         ctx.save();
