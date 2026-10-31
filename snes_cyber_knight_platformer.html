@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Knight - SNES 16-Bit Action Platformer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 960px;
+            aspect-ratio: 16 / 9;
+            box-shadow: 0 0 30px rgba(0, 255, 200, 0.2), 0 0 10px rgba(0, 0, 0, 0.8);
+            border: 4px solid #1a1a2e;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Mobile Controls Overlay */
+        #touch-controls {
+            display: none;
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .touch-btn {
+            position: absolute;
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            touch-action: manipulation;
+            backdrop-filter: blur(2px);
+        }
+
+        .touch-btn:active {
+            background: rgba(0, 255, 200, 0.4);
+            border-color: #00ffcc;
+        }
+
+        #dpad-left { bottom: 20px; left: 20px; width: 55px; height: 55px; }
+        #dpad-right { bottom: 20px; left: 85px; width: 55px; height: 55px; }
+        #btn-jump { bottom: 25px; right: 20px; width: 60px; height: 60px; background: rgba(255, 0, 100, 0.25); }
+        #btn-attack { bottom: 25px; right: 90px; width: 55px; height: 55px; background: rgba(0, 200, 255, 0.25); }
+
+        @media (pointer: coarse) {
+            #touch-controls {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <canvas id="gameCanvas" width="512" height="288"></canvas>
+    
+    <!-- Mobile Touch Overlay -->
+    <div id="touch-controls">
+        <div id="dpad-left" class="touch-btn">◄</div>
+        <div id="dpad-right" class="touch-btn">►</div>
+        <div id="btn-attack" class="touch-btn">X</div>
+        <div id="btn-jump" class="touch-btn">Z</div>
+    </div>
+</div>
+
+<script>
+/**
+ * CYBER KNIGHT - SNES 16-BIT PLATFORMER
+ * Complete single-file HTML5 / Canvas / Web Audio API engine.
+ */
+
+// --- AUDIO SYNTHESIZER (SNES Sound Chip Emulation) ---
+class RetroAudio {
+    constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.bgmTimer = null;
+        this.step = 0;
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    playTone(freq, type, duration, vol = 0.1) {
+        if (!this.ctx || this.muted) return;
+        try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        } catch(e){}
+    }
+
+    playNoise(duration, vol = 0.1) {
+        if (!this.ctx || this.muted) return;
+        try {
+            const bufferSize = this.ctx.sampleRate * duration;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            noise.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start();
+        } catch(e){}
+    }
+
+    sfxJump() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(450, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    }
+
+    sfxShoot() {
+        this.playTone(800, 'sawtooth', 0.08, 0.06);
+        this.playNoise(0.05, 0.04);
+    }
+
+    sfxHit() {
+        this.playNoise(0.15, 0.12);
+        this.playTone(90, 'sawtooth', 0.15, 0.1);
+    }
+
+    sfxCoin() {
+        this.playTone(987.77, 'sine', 0.08, 0.08); // B5
+        setTimeout(() => this.playTone(1318.51, 'sine', 0.15, 0.08), 80); // E6
+    }
+
+    startBGM() {
+        if (this.bgmTimer) return;
+        const notes = [110, 110, 220, 146, 165, 110, 196, 146]; // Chiptune bassline
+        this.bgmTimer = setInterval(() => {
+            if (this.muted || !this.ctx) return;
+            const note = notes[this.step % notes.length];
+            this.playTone(note, 'triangle', 0.18, 0.05);
+            if (this.step % 4 === 0) {
+                this.playNoise(0.04, 0.02); // Hi-hat simulation
+            }
+            this.step++;
+        }, 160);
+    }
+
+    stopBGM() {
+        if (this.bgmTimer) {
+            clearInterval(this.bgmTimer);
+            this.bgmTimer = null;
+        }
+    }
+}
+
+const audio = new RetroAudio();
+
+// --- PROCEDURAL 16-BIT PIXEL ART GENERATOR ---
+// Creates off-screen canvas textures with SNES color palettes
+function createPixelTexture(width, height, drawFn) {
+    const cvs = document.createElement('canvas');
+    cvs.width = width;
+    cvs.height = height;
+    const ctx = cvs.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    drawFn(ctx);
+    return cvs;
+}
+
+const Sprites = {
+    player: null,
+    enemyRunner: null,
+    enemyFlyer: null,
+    coin: null,
+    tileset: null,
+
+    init() {
+        // Player Sprite Sheet (Stand, Run1, Run2, Jump, Attack)
+        this.player = createPixelTexture(80, 16, (ctx) => {
+            const colors = { b: '#1a1c23', g: '#00ffcc', r: '#ff0055', w: '#ffffff', s: '#ffccaa' };
+            
+            // Helper to draw 16x16 frames
+            const drawFrame = (ox, pose) => {
+                // Armor Body
+                ctx.fillStyle = colors.b; ctx.fillRect(ox + 4, 4, 8, 10);
+                ctx.fillStyle = colors.g; ctx.fillRect(ox + 5, 5, 6, 4); // Visor
+                ctx.fillStyle = colors.w; ctx.fillRect(ox + 6, 6, 2, 1);
+                
+                // Limbs based on pose
+                ctx.fillStyle = colors.r;
+                if (pose === 'stand') {
+                    ctx.fillRect(ox + 4, 12, 3, 4); ctx.fillRect(ox + 9, 12, 3, 4);
+                } else if (pose === 'run1') {
+                    ctx.fillRect(ox + 2, 12, 4, 4); ctx.fillRect(ox + 9, 11, 4, 4);
+                } else if (pose === 'run2') {
+                    ctx.fillRect(ox + 9, 12, 4, 4); ctx.fillRect(ox + 3, 11, 4, 4);
+                } else if (pose === 'jump') {
+                    ctx.fillRect(ox + 3, 10, 4, 3); ctx.fillRect(ox + 8, 10, 4, 3);
+                }
+            };
+
+            drawFrame(0, 'stand');
+            drawFrame(16, 'run1');
+            drawFrame(32, 'run2');
+            drawFrame(48, 'jump');
+
+            // Attack frame (Frame 5)
+            drawFrame(64, 'stand');
+            ctx.fillStyle = colors.g;
+            ctx.fillRect(76, 6, 4, 2); // Blaster flash
+        });
+
+        // Enemy Runner Sprite (Cyber Slime / Bug)
+        this.enemyRunner = createPixelTexture(32, 16, (ctx) => {
+            const drawBug = (ox, f) => {
+                ctx.fillStyle = '#ff0055'; ctx.fillRect(ox + 2, 4 + f, 12, 8);
+                ctx.fillStyle = '#ffaa00'; ctx.fillRect(ox + 4, 6 + f, 3, 3);
+                ctx.fillStyle = '#330011'; ctx.fillRect(ox + 1, 12 - f, 4, 3); ctx.fillRect(ox + 11, 12 - f, 4, 3);
+            };
+            drawBug(0, 0);
+            drawBug(16, 1);
+        });
+
+        // Enemy Flyer Sprite
+        this.enemyFlyer = createPixelTexture(32, 16, (ctx) => {
+            const drawFly = (ox, wingY) => {
+                ctx.fillStyle = '#9900ff'; ctx.fillRect(ox + 4, 5, 8, 6);
+                ctx.fillStyle = '#00ffff'; ctx.fillRect(ox + 2, wingY, 12, 2); // Wings
+                ctx.fillStyle = '#ffff00'; ctx.fillRect(ox + 6, 7, 4, 2); // Eye
+            };
+            drawFly(0, 3);
+            drawFly(16, 1);
+        });
+
+        // Coin / Energy Orb Sprite
+        this.coin = createPixelTexture(32, 8, (ctx) => {
+            const frames = [6, 4, 2, 4];
+            frames.forEach((w, i) => {
+                const ox = i * 8;
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(ox + (8 - w) / 2, 1, w, 6);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(ox + (8 - w) / 2 + 1, 2, 1, 3);
+            });
+        });
+
+        // Environment Tileset
+        this.tileset = createPixelTexture(64, 16, (ctx) => {
+            // Grass / Metal Top Platform
+            ctx.fillStyle = '#112233'; ctx.fillRect(0, 0, 16, 16);
+            ctx.fillStyle = '#00ffcc'; ctx.fillRect(0, 0, 16, 3);
+            ctx.fillStyle = '#00aa88'; ctx.fillRect(0, 3, 16, 1);
+
+            // Brick Block
+            ctx.fillStyle = '#442255'; ctx.fillRect(16, 0, 16, 16);
+            ctx.fillStyle = '#663377'; ctx.fillRect(17, 1, 14, 14);
+            ctx.fillStyle = '#221133'; ctx.fillRect(16, 8, 16, 1); ctx.fillRect(24, 0, 1, 8); ctx.fillRect(20, 8, 1, 8);
+
+            // Hazard Spike
+            ctx.fillStyle = '#1a1c23'; ctx.fillRect(32, 0, 16, 16);
+            ctx.fillStyle = '#ff0055';
+            ctx.beginPath();
+            ctx.moveTo(32, 16); ctx.lineTo(36, 4); ctx.lineTo(40, 16);
+            ctx.moveTo(40, 16); ctx.lineTo(44, 4); ctx.lineTo(48, 16);
+            ctx.fill();
+        });
+    }
+};
+
+// --- GAME STATE & CONSTANTS ---
+const CANVAS_WIDTH = 512;
+const CANVAS_HEIGHT = 288;
+const TILE_SIZE = 16;
+const GRAVITY = 0.45;
+
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.ctx.imageSmoothingEnabled = false;
+
+        this.state = 'START'; // START, PLAYING, GAMEOVER, VICTORY
+        this.score = 0;
+        this.cameraX = 0;
+
+        this.keys = {};
+        this.setupInputs();
+
+        this.resetLevel();
+    }
+
+    resetLevel() {
+        this.score = 0;
+        this.cameraX = 0;
+
+        // Player Entity
+        this.player = {
+            x: 50,
+            y: 180,
+            vx: 0,
+            vy: 0,
+            width: 12,
+            height: 14,
+            grounded: false,
+            facing: 'right',
+            animFrame: 0,
+            animTimer: 0,
+            hp: 5,
+            maxHp: 5,
+            invulnerable: 0,
+            attacking: 0
+        };
+
+        // Projectiles
+        this.bullets = [];
+
+        // Particles
+        this.particles = [];
+
+        // Level Map Definition (16x16 tile grid)
+        // 0: Empty, 1: Ground, 2: Block, 3: Hazard Spike
+        this.mapWidth = 120;
+        this.mapHeight = 18;
+        this.map = new Array(this.mapHeight * this.mapWidth).fill(0);
+
+        // Build Level Layout
+        for (let x = 0; x < this.mapWidth; x++) {
+            // Main Floor with gaps
+            if (!(x > 25 && x < 28) && !(x > 55 && x < 59) && !(x > 85 && x < 88)) {
+                this.setTile(x, 16, 1);
+                this.setTile(x, 17, 1);
+            }
+
+            // Platforms & Structures
+            if (x > 10 && x < 16) this.setTile(x, 12, 2);
+            if (x > 20 && x < 24) this.setTile(x, 9, 2);
+            if (x > 32 && x < 42) this.setTile(x, 13, 1);
+            if (x > 36 && x < 39) this.setTile(x, 8, 2);
+
+            // Spikes
+            if (x === 35 || x === 36) this.setTile(x, 12, 3);
+            if (x > 65 && x < 70) this.setTile(x, 15, 3);
+
+            // End Goal Platform
+            if (x >= 110) {
+                this.setTile(x, 14, 2);
+            }
+        }
+
+        // Collectibles & Enemies
+        this.coins = [
+            { x: 120, y: 160, collected: false },
+            { x: 140, y: 160, collected: false },
+            { x: 330, y: 110, collected: false },
+            { x: 350, y: 110, collected: false },
+            { x: 600, y: 170, collected: false },
+            { x: 800, y: 170, collected: false }
+        ];
+
+        this.enemies = [
+            { x: 200, y: 230, vx: -0.8, type: 'runner', hp: 2, frame: 0 },
+            { x: 450, y: 180, vx: -1.0, type: 'runner', hp: 2, frame: 0 },
+            { x: 300, y: 100, vx: 0.6, vy: 0.5, type: 'flyer', originY: 100, hp: 1, frame: 0 },
+            { x: 700, y: 200, vx: -1.2, type: 'runner', hp: 2, frame: 0 },
+            { x: 900, y: 120, vx: 0.8, vy: 0.4, type: 'flyer', originY: 120, hp: 1, frame: 0 }
+        ];
+    }
+
+    getTile(tx, ty) {
+        if (tx < 0 || tx >= this.mapWidth || ty < 0 || ty >= this.mapHeight) return 0;
+        return this.map[ty * this.mapWidth + tx];
+    }
+
+    setTile(tx, ty, val) {
+        if (tx >= 0 && tx < this.mapWidth && ty >= 0 && ty < this.mapHeight) {
+            this.map[ty * this.mapWidth + tx] = val;
+        }
+    }
+
+    setupInputs() {
+        window.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
+            audio.init();
+
+            if (this.state !== 'PLAYING' && (e.code === 'Space' || e.code === 'KeyZ' || e.code === 'Enter')) {
+                this.resetLevel();
+                this.state = 'PLAYING';
+                audio.startBGM();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+        });
+
+        // Touch Control Listeners
+        const bindTouch = (id, keyName) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const start = (e) => {
+                e.preventDefault();
+                audio.init();
+                this.keys[keyName] = true;
+                if (this.state !== 'PLAYING') {
+                    this.resetLevel();
+                    this.state = 'PLAYING';
+                    audio.startBGM();
+                }
+            };
+            const end = (e) => {
+                e.preventDefault();
+                this.keys[keyName] = false;
+            };
+            el.addEventListener('touchstart', start);
+            el.addEventListener('touchend', end);
+            el.addEventListener('mousedown', start);
+            el.addEventListener('mouseup', end);
+        };
+
+        bindTouch('dpad-left', 'ArrowLeft');
+        bindTouch('dpad-right', 'ArrowRight');
+        bindTouch('btn-jump', 'KeyZ');
+        bindTouch('btn-attack', 'KeyX');
+    }
+
+    addParticles(x, y, color, count = 5) {
+        for (let i = 0; i < count; i++) {
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                life: 15 + Math.random() * 10,
+                color: color
+            });
+        }
+    }
+
+    update() {
+        if (this.state !== 'PLAYING') return;
+
+        const p = this.player;
+
+        // --- PLAYER CONTROLS & PHYSICS ---
+        if (this.keys['ArrowLeft'] || this.keys['KeyA']) {
+            p.vx = -2.2;
+            p.facing = 'left';
+        } else if (this.keys['ArrowRight'] || this.keys['KeyD']) {
+            p.vx = 2.2;
+            p.facing = 'right';
+        } else {
+            p.vx *= 0.7; // Friction
+        }
+
+        // Jump (Z or Space or ArrowUp)
+        if ((this.keys['KeyZ'] || this.keys['Space'] || this.keys['ArrowUp']) && p.grounded) {
+            p.vy = -7.5;
+            p.grounded = false;
+            audio.sfxJump();
+            this.addParticles(p.x + p.width / 2, p.y + p.height, '#ffffff', 4);
+        }
+
+        // Attack (X or KeyF)
+        if ((this.keys['KeyX'] || this.keys['KeyF']) && p.attacking <= 0) {
+            p.attacking = 12; // Cooldown frames
+            audio.sfxShoot();
+            const bx = p.facing === 'right' ? p.x + p.width + 2 : p.x - 6;
+            this.bullets.push({
+                x: bx,
+                y: p.y + 4,
+                vx: p.facing === 'right' ? 6 : -6,
+                life: 40
+            });
+        }
+
+        if (p.attacking > 0) p.attacking--;
+        if (p.invulnerable > 0) p.invulnerable--;
+
+        // Apply Gravity
+        p.vy += GRAVITY;
+
+        // --- HORIZONTAL COLLISION ---
+        p.x += p.vx;
+        let tx = Math.floor((p.x + (p.vx > 0 ? p.width : 0)) / TILE_SIZE);
+        let ty1 = Math.floor(p.y / TILE_SIZE);
+        let ty2 = Math.floor((p.y + p.height - 1) / TILE_SIZE);
+
+        if (this.getTile(tx, ty1) === 1 || this.getTile(tx, ty1) === 2 ||
+            this.getTile(tx, ty2) === 1 || this.getTile(tx, ty2) === 2) {
+            p.x = p.vx > 0 ? tx * TILE_SIZE - p.width : (tx + 1) * TILE_SIZE;
+            p.vx = 0;
+        }
+
+        // --- VERTICAL COLLISION ---
+        p.y += p.vy;
+        p.grounded = false;
+        let ty = Math.floor((p.y + (p.vy > 0 ? p.height : 0)) / TILE_SIZE);
+        let tx1 = Math.floor(p.x / TILE_SIZE);
+        let tx2 = Math.floor((p.x + p.width - 1) / TILE_SIZE);
+
+        const tileT1 = this.getTile(tx1, ty);
+        const tileT2 = this.getTile(tx2, ty);
+
+        // Solid Floor Landing
+        if (tileT1 === 1 || tileT1 === 2 || tileT2 === 1 || tileT2 === 2) {
+            if (p.vy > 0) {
+                p.y = ty * TILE_SIZE - p.height;
+                p.vy = 0;
+                p.grounded = true;
+            } else if (p.vy < 0) {
+                p.y = (ty + 1) * TILE_SIZE;
+                p.vy = 0;
+            }
+        }
+
+        // Hazard Spikes Collision
+        if (tileT1 === 3 || tileT2 === 3) {
+            this.hurtPlayer(2);
+        }
+
+        // Pitfall Death
+        if (p.y > CANVAS_HEIGHT + 30) {
+            this.hurtPlayer(99);
+        }
+
+        // --- CAMERA TRACKING ---
+        this.cameraX = Math.max(0, Math.min(p.x - CANVAS_WIDTH / 3, (this.mapWidth * TILE_SIZE) - CANVAS_WIDTH));
+
+        // --- BULLETS UPDATE ---
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            let b = this.bullets[i];
+            b.x += b.vx;
+            b.life--;
+
+            // Tile collision for bullets
+            let btx = Math.floor(b.x / TILE_SIZE);
+            let bty = Math.floor(b.y / TILE_SIZE);
+            if (this.getTile(btx, bty) !== 0 || b.life <= 0) {
+                this.addParticles(b.x, b.y, '#00ffcc', 3);
+                this.bullets.splice(i, 1);
+                continue;
+            }
+
+            // Bullet hits Enemy
+            for (let j = this.enemies.length - 1; j >= 0; j--) {
+                let e = this.enemies[j];
+                if (b.x > e.x && b.x < e.x + 16 && b.y > e.y && b.y < e.y + 16) {
+                    e.hp--;
+                    this.addParticles(b.x, b.y, '#ff0055', 6);
+                    audio.sfxHit();
+                    this.bullets.splice(i, 1);
+                    if (e.hp <= 0) {
+                        this.score += e.type === 'flyer' ? 200 : 100;
+                        this.enemies.splice(j, 1);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // --- ENEMIES UPDATE ---
+        this.enemies.forEach(e => {
+            e.x += e.vx;
+            e.frame = (e.frame + 0.1) % 2;
+
+            if (e.type === 'runner') {
+                // Turn around at ledge/wall
+                let frontX = Math.floor((e.x + (e.vx > 0 ? 16 : 0)) / TILE_SIZE);
+                let downY = Math.floor((e.y + 18) / TILE_SIZE);
+                if (this.getTile(frontX, Math.floor(e.y / TILE_SIZE)) !== 0 || this.getTile(frontX, downY) === 0) {
+                    e.vx *= -1;
+                }
+            } else if (e.type === 'flyer') {
+                e.y += e.vy;
+                if (Math.abs(e.y - e.originY) > 20) e.vy *= -1;
+                if (e.x < 0 || e.x > this.mapWidth * TILE_SIZE) e.vx *= -1;
+            }
+
+            // Enemy touches Player
+            if (p.invulnerable <= 0 &&
+                p.x < e.x + 12 && p.x + p.width > e.x + 2 &&
+                p.y < e.y + 12 && p.y + p.height > e.y + 2) {
+                this.hurtPlayer(1);
+            }
+        });
+
+        // --- COIN PICKUPS ---
+        this.coins.forEach(c => {
+            if (!c.collected && p.x < c.x + 12 && p.x + p.width > c.x && p.y < c.y + 12 && p.y + p.height > c.y) {
+                c.collected = true;
+                this.score += 50;
+                audio.sfxCoin();
+                this.addParticles(c.x + 4, c.y + 4, '#ffcc00', 8);
+            }
+        });
+
+        // --- PARTICLES UPDATE ---
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            let pt = this.particles[i];
+            pt.x += pt.vx;
+            pt.y += pt.vy;
+            pt.life--;
+            if (pt.life <= 0) this.particles.splice(i, 1);
+        }
+
+        // --- VICTORY CONDITION ---
+        if (p.x > (this.mapWidth - 8) * TILE_SIZE) {
+            this.state = 'VICTORY';
+            audio.stopBGM();
+            audio.sfxCoin();
+        }
+    }
+
+    hurtPlayer(amount) {
+        const p = this.player;
+        p.hp -= amount;
+        p.invulnerable = 40;
+        p.vy = -4;
+        p.vx = p.facing === 'right' ? -3 : 3;
+        audio.sfxHit();
+        this.addParticles(p.x + p.width / 2, p.y + p.height / 2, '#ff0055', 10);
+
+        if (p.hp <= 0) {
+            this.state = 'GAMEOVER';
+            audio.stopBGM();
+        }
+    }
+
+    // --- RENDER ENGINE ---
+    draw() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // 1. PARALLAX BACKGROUND LAYER 1 (Sky Gradient & Stars)
+        ctx.fillStyle = '#0b091a';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.fillStyle = '#181435';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, 180);
+
+        // Static Stars
+        ctx.fillStyle = '#6c5eb5';
+        for (let i = 0; i < 30; i++) {
+            let sx = (i * 37) % CANVAS_WIDTH;
+            let sy = (i * 13) % 120;
+            ctx.fillRect(sx, sy, 1, 1);
+        }
+
+        // 2. PARALLAX LAYER 2 (Distant SNES Mountains)
+        ctx.fillStyle = '#251d54';
+        const bg2Offset = (this.cameraX * 0.2) % 128;
+        for (let i = -1; i < 5; i++) {
+            let mx = i * 128 - bg2Offset;
+            ctx.beginPath();
+            ctx.moveTo(mx, 180);
+            ctx.lineTo(mx + 64, 110);
+            ctx.lineTo(mx + 128, 180);
+            ctx.fill();
+        }
+
+        // 3. PARALLAX LAYER 3 (Cyber City / Forest Silhouette)
+        ctx.fillStyle = '#113344';
+        const bg3Offset = (this.cameraX * 0.5) % 64;
+        for (let i = -1; i < 10; i++) {
+            let bx = i * 64 - bg3Offset;
+            ctx.fillRect(bx + 4, 130, 24, 50);
+            ctx.fillRect(bx + 36, 110, 20, 70);
+        }
+
+        // --- WORLD TRANSFORM (Camera Shift) ---
+        ctx.save();
+        ctx.translate(-Math.floor(this.cameraX), 0);
+
+        // 4. DRAW TILEMAP
+        const startTileX = Math.floor(this.cameraX / TILE_SIZE);
+        const endTileX = startTileX + Math.ceil(CANVAS_WIDTH / TILE_SIZE) + 1;
+
+        for (let ty = 0; ty < this.mapHeight; ty++) {
+            for (let tx = startTileX; tx < endTileX; tx++) {
+                const tile = this.getTile(tx, ty);
+                if (tile > 0) {
+                    // Draw tile from procedural tileset sprite
+                    ctx.drawImage(
+                        Sprites.tileset,
+                        (tile - 1) * 16, 0, 16, 16,
+                        tx * TILE_SIZE, ty * TILE_SIZE, 16, 16
+                    );
+                }
+            }
+        }
+
+        // 5. DRAW COINS
+        const coinFrame = Math.floor((Date.now() / 150) % 4);
+        this.coins.forEach(c => {
+            if (!c.collected) {
+                ctx.drawImage(Sprites.coin, coinFrame * 8, 0, 8, 8, c.x, c.y, 8, 8);
+            }
+        });
+
+        // 6. DRAW ENEMIES
+        this.enemies.forEach(e => {
+            const spr = e.type === 'runner' ? Sprites.enemyRunner : Sprites.enemyFlyer;
+            const fx = Math.floor(e.frame) * 16;
+            ctx.drawImage(spr, fx, 0, 16, 16, Math.floor(e.x), Math.floor(e.y), 16, 16);
+        });
+
+        // 7. DRAW BULLETS
+        ctx.fillStyle = '#00ffcc';
+        this.bullets.forEach(b => {
+            ctx.fillRect(Math.floor(b.x), Math.floor(b.y), 4, 2);
+        });
+
+        // 8. DRAW PLAYER
+        const p = this.player;
+        if (p.invulnerable % 4 < 2) { // Blink when hit
+            let frameX = 0;
+            if (!p.grounded) frameX = 48; // Jump frame
+            else if (Math.abs(p.vx) > 0.2) {
+                p.animTimer += 0.15;
+                frameX = (Math.floor(p.animTimer) % 2 === 0 ? 16 : 32); // Run frames
+            }
+            if (p.attacking > 0) frameX = 64; // Attack frame
+
+            ctx.save();
+            ctx.translate(Math.floor(p.x) + 8, Math.floor(p.y) + 8);
+            if (p.facing === 'left') ctx.scale(-1, 1);
+            ctx.drawImage(Sprites.player, frameX, 0, 16, 16, -8, -8, 16, 16);
+            ctx.restore();
+        }
+
+        // 9. DRAW PARTICLES
+        this.particles.forEach(pt => {
+            ctx.fillStyle = pt.color;
+            ctx.fillRect(Math.floor(pt.x), Math.floor(pt.y), 2, 2);
+        });
+
+        // End Goal Flag Structure
+        ctx.fillStyle = '#ff0055';
+        ctx.fillRect((this.mapWidth - 5) * TILE_SIZE, 114, 4, 110);
+        ctx.fillStyle = '#00ffcc';
+        ctx.beginPath();
+        ctx.moveTo((this.mapWidth - 5) * TILE_SIZE + 4, 114);
+        ctx.lineTo((this.mapWidth - 5) * TILE_SIZE + 24, 124);
+        ctx.lineTo((this.mapWidth - 5) * TILE_SIZE + 4, 134);
+        ctx.fill();
+
+        ctx.restore(); // Restore Camera Transform
+
+        // --- 10. SNES HUD / UI OVERLAY ---
+        // Top HUD Bar
+        ctx.fillStyle = 'rgba(10, 10, 20, 0.75)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, 22);
+        ctx.strokeStyle = '#00ffcc';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, CANVAS_WIDTH, 22);
+
+        // Player HP Bar (Hearts / Energy Nodes)
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px monospace';
+        ctx.fillText('LIFE:', 8, 15);
+        for (let i = 0; i < p.maxHp; i++) {
+            ctx.fillStyle = i < p.hp ? '#ff0055' : '#441122';
+            ctx.fillRect(42 + (i * 10), 7, 8, 10);
+            ctx.fillStyle = '#ffaa00';
+            if (i < p.hp) ctx.fillRect(44 + (i * 10), 9, 2, 3);
+        }
+
+        // Score Counter
+        ctx.fillStyle = '#ffff00';
+        ctx.fillText(`SCORE: ${String(this.score).padStart(6, '0')}`, 150, 15);
+
+        // Controls Reminder
+        ctx.fillStyle = '#00ffcc';
+        ctx.fillText('KEYS: [ARROWS]=Move | [Z]=Jump | [X]=Shoot', 290, 15);
+
+        // --- OVERLAY SCREENS ---
+        if (this.state === 'START') {
+            this.drawBanner('CYBER KNIGHT 16-BIT', 'PRESS JUMP [Z / SPACE] TO START');
+        } else if (this.state === 'GAMEOVER') {
+            this.drawBanner('GAME OVER', 'PRESS JUMP TO RETRY');
+        } else if (this.state === 'VICTORY') {
+            this.drawBanner('STAGE CLEAR!', `FINAL SCORE: ${this.score} - PRESS JUMP TO RESTART`);
+        }
+    }
+
+    drawBanner(title, subtitle) {
+        const ctx = this.ctx;
+        ctx.fillStyle = 'rgba(5, 5, 12, 0.85)';
+        ctx.fillRect(40, 80, CANVAS_WIDTH - 80, 110);
+        ctx.strokeStyle = '#ff0055';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(42, 82, CANVAS_WIDTH - 84, 106);
+
+        ctx.fillStyle = '#00ffcc';
+        ctx.font = 'bold 20px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(title, CANVAS_WIDTH / 2, 120);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '11px monospace';
+        ctx.fillText(subtitle, CANVAS_WIDTH / 2, 155);
+        ctx.textAlign = 'left';
+    }
+
+    loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    }
+}
+
+// Launch Game on Load
+window.onload = () => {
+    Sprites.init();
+    const game = new Game();
+    game.loop();
+};
+</script>
+</body>
+</html>
