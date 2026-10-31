@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Meu Mini Jogo HTML5</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background-color: #111;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Use as setas ← e → para mover</h2>
+    <canvas id="jogoCanvas" width="400" height="400"></canvas>
+    <p>Pontuação: <span id="pontos">0</span></p>
+
+    <script>
+        const canvas = document.getElementById("jogoCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Posição do Jogador
+        let jogador = { x: 180, y: 350, largura: 40, altura: 20, velocidade: 5 };
+        // Posição do Objeto (para pegar)
+        let objeto = { x: Math.random() * 370, y: 0, tamanho: 20, velocidade: 3 };
+        let pontuacao = 0;
+
+        // Controles do Teclado
+        let teclas = {};
+        window.addEventListener("keydown", (e) => teclas[e.key] = true);
+        window.addEventListener("keyup", (e) => teclas[e.key] = false);
+
+        function atualizar() {
+            // Movimentação
+            if (teclas["ArrowLeft"] && jogador.x > 0) jogador.x -= jogador.velocidade;
+            if (teclas["ArrowRight"] && jogador.x < canvas.width - jogador.largura) jogador.x += jogador.velocidade;
+
+            // Queda do objeto
+            objeto.y += objeto.velocidade;
+            if (objeto.y > canvas.height) {
+                objeto.y = 0;
+                objeto.x = Math.random() * (canvas.width - objeto.tamanho);
+            }
+
+            // Colisão simples
+            if (
+                objeto.y + objeto.tamanho >= jogador.y &&
+                objeto.x + objeto.tamanho >= jogador.x &&
+                objeto.x <= jogador.x + jogador.largura
+            ) {
+                pontuacao++;
+                document.getElementById("pontos").innerText = pontuacao;
+                objeto.y = 0;
+                objeto.x = Math.random() * (canvas.width - objeto.tamanho);
+                objeto.velocidade += 0.2; // Aumenta a dificuldade
+            }
+        }
+
+        function desenhar() {
+            // Limpa a tela
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenha o Jogador (Barra)
+            ctx.fillStyle = "#00ffcc";
+            ctx.fillRect(jogador.x, jogador.y, jogador.largura, jogador.altura);
+
+            // Desenha o Objeto
+            ctx.fillStyle = "#ff0055";
+            ctx.fillRect(objeto.x, objeto.y, objeto.tamanho, objeto.tamanho);
+        }
+
+        function loop() {
+            atualizar();
+            desenhar();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
