@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fuga do Ônibus Lotado</title>
+<style>
+:root{--bg:#7ad0ff;--fg:#fff;--accent:#ffd400;--green:#1b8f3a;--panel:rgba(8,40,22,.85);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#7ad0ff;--fg:#fff;--accent:#ffd400;--green:#1b8f3a;--panel:rgba(8,40,22,.85)}}
+:root[data-theme="dark"]{--bg:#7ad0ff;--fg:#fff;--accent:#ffd400;--green:#1b8f3a;--panel:rgba(8,40,22,.85)}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;touch-action:none;user-select:none}
+canvas{display:block;position:fixed;inset:0;width:100%;height:100%}
+#hud{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;display:flex;justify-content:space-between;padding:0 14px;font-weight:800;font-size:16px;pointer-events:none;text-shadow:0 2px 5px #000b}
+#hud b{color:var(--accent)}
+#toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 48px);left:50%;transform:translateX(-50%);max-width:88%;text-align:center;background:var(--green);color:#fff;font-weight:800;padding:8px 16px;border-radius:999px;border:2px solid var(--accent);opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,20,10,.5)}
+.card{background:var(--panel);border:3px solid var(--accent);border-radius:18px;padding:22px;max-width:340px;text-align:center}
+.card h1{margin:0 0 8px;font-size:26px;color:var(--accent)}
+.card p{margin:6px 0;font-size:15px;line-height:1.4}
+button{margin-top:14px;font:inherit;font-weight:800;font-size:17px;padding:12px 28px;border:0;border-radius:999px;background:var(--accent);color:#14320f;cursor:pointer}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div id="hud"><span>📍 <b id="score">0</b> m</span><span>🪙 <b id="coins">0</b></span><span>Recorde: <b id="best">0</b></span></div>
+<div id="toast"></div>
+<div id="overlay"><div class="card">
+<h1 id="title">🚌 Fuga do Ônibus Lotado</h1>
+<p id="msg">Corra pro ponto! Desvie do vendedor de bala, do tiozão do pagode e da dona Maria. Pegue moedinhas pra passagem!</p>
+<p>⬅️ ➡️ trocam de pista · ⬆️ ou Espaço pula<br>No celular: deslize a tela.</p>
+<button id="go">Correr!</button>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+document.body.prepend(renderer.domElement);
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x9fd8ff);
+scene.fog=new THREE.Fog(0x9fd8ff,25,90);
+var camera=new THREE.PerspectiveCamera(65,1,0.1,200);
+scene.add(new THREE.AmbientLight(0xffffff,0.75));
+var sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(5,12,6);scene.add(sun);
+function resize(){var w=innerWidth,h=innerHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.fov=w<h?80:65;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+var M={};function mat(c){return M[c]||(M[c]=new THREE.MeshLambertMaterial({color:c}));}
+function box(w,h,d,c,x,y,z){var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);return m;}
+function ball(r,c,x,y,z){var m=new THREE.Mesh(new THREE.SphereGeometry(r,12,10),mat(c));m.position.set(x,y,z);return m;}
+function person(shirt,legs,skin,kind){
+  var g=new THREE.Group();
+  g.add(box(0.8,0.7,0.5,legs,0,0.35,0));
+  g.add(box(0.9,0.8,0.55,shirt,0,1.1,0));
+  g.add(ball(0.32,skin,0,1.75,0));
+  if(kind==='bala'){g.add(box(1.1,0.12,0.6,0x8b5a2b,0,1.0,0.55));[[-0.3,0xff2d95],[0.1,0x35e0ff],[0.4,0xffe14a]].forEach(function(a){g.add(box(0.2,0.2,0.2,a[1],a[0],1.16,0.55));});}
+  if(kind==='pagode'){g.add(box(0.5,0.8,0.4,0x222222,0.8,1.0,0));g.add(ball(0.14,0x999999,0.8,1.1,0.22));g.add(box(0.8,0.08,0.8,0xf5f0e0,0,2.05,0));g.add(box(0.45,0.15,0.45,0xf5f0e0,0,2.15,0));}
+  if(kind==='maria'){g.add(box(0.7,0.9,0.5,0xff7a1a,-0.85,0.8,0.1));g.add(ball(0.2,0xdddddd,0,2.1,-0.1));}
+  return g;
+}
+var KINDS=[
+ {k:'bala',s:0xe53935,l:0x333a56,sk:0xe0ac69,m:'O vendedor de bala: “3 por 1 real!” E você tropeçou!'},
+ {k:'pagode',s:0x1e88e5,l:0xdddddd,sk:0x8d5524,m:'O tiozão do pagode te chamou pra resenha. Perdeu o ônibus!'},
+ {k:'maria',s:0x8e24aa,l:0x6d4c41,sk:0xf1c27d,m:'Dona Maria te acertou com a sacola de feira!'}];
+var COINMSG=['+1 moedinha pra passagem!','Troco certinho!','Achou R$ 1,00!','Passagem garantida!'];
+
+// cenário
+var ground=box(260,0.02,300,0x6a9955,0,-0.02,-80);scene.add(ground);
+scene.add(box(8,0.04,300,0x3b3f4a,0,0.01,-80));
+[-5.5,5.5].forEach(function(x){scene.add(box(3,0.15,300,0xbdbdbd,x,0.07,-80));});
+var lineMat=mat(0xffffff),lines=[];
+for(var i=0;i<20;i++){[-1.33,1.33].forEach(function(x){var m=box(0.12,0.03,3,0xffffff,x,0.05,-i*8);scene.add(m);lines.push(m);});}
+var PAL=[0xf06292,0xffb74d,0x4fc3f7,0x81c784,0xfff176,0xba68c8],bl=[];
+for(var i=0;i<12;i++){[-1,1].forEach(function(s){var w=3+Math.random()*2,h=4+Math.random()*8;var b=box(w,h,6,PAL[Math.floor(Math.random()*6)],s*(8+w/2),h/2,-i*10);scene.add(b);bl.push(b);});}
+
+// ônibus lotado ao fundo
+var bus=new THREE.Group();
+bus.add(box(5.6,3.2,8,0xf9a825,0,1.8,0));
+bus.add(box(5.62,0.5,8.02,0x2e7d32,0,0.9,0));
+bus.add(box(4.8,1.1,0.05,0x1b2a3a,0,2.3,4.01));
+[-2,-1,0,1,2].forEach(function(x,i){bus.add(ball(0.32,[0xe0ac69,0x8d5524,0xf1c27d,0x6d4118,0xffdbac][i],x*0.85,2.2,4.1));});
+var cv=document.createElement('canvas');cv.width=256;cv.height=64;var cx=cv.getContext('2d');
+cx.fillStyle='#111';cx.fillRect(0,0,256,64);cx.fillStyle='#ffb300';cx.font='bold 40px sans-serif';cx.textAlign='center';cx.fillText('LOTADO',128,46);
+var sign=new THREE.Mesh(new THREE.PlaneGeometry(2.4,0.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));
+sign.position.set(0,3.1,4.03);bus.add(sign);
+bus.position.set(0,0,-46);scene.add(bus);
+
+// jogador
+var player=person(0xffdd00,0x1a4fd6,0xc68642,'');scene.add(player);
+
+var LANES=[-2.67,0,2.67],lane=1,vy=0,y=0,speed=26,score=0,coins=0,alive=false,items=[],t=0,spawnT=0,hit=null,mile=0;
+var bestV=0;try{bestV=+localStorage.getItem('fob-best')||0}catch(e){}
+var $=function(id){return document.getElementById(id)};
+$('best').textContent=bestV;
+var tt;function toast(s){var e=$('toast');e.textContent=s;e.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){e.classList.remove('on')},1400);}
+
+var coinGeo=new THREE.CylinderGeometry(0.45,0.45,0.12,20),coinMat=new THREE.MeshLambertMaterial({color:0xffd54a,emissive:0x6b4f00});
+function spawn(){
+  var l=Math.floor(Math.random()*3),m;
+  if(Math.random()<0.6){
+    var k=KINDS[Math.floor(Math.random()*3)];
+    m=person(k.s,k.l,k.sk,k.k);m.position.set(LANES[l],0,-80);m.userData={type:'o',lane:l,msg:k.m};
+    if(Math.random()<0.3){var l2=(l+1+Math.floor(Math.random()*2))%3,k2=KINDS[Math.floor(Math.random()*3)];var m2=person(k2.s,k2.l,k2.sk,k2.k);m2.position.set(LANES[l2],0,-80);m2.userData={type:'o',lane:l2,msg:k2.m};scene.add(m2);items.push(m2);}
+  }else{
+    m=new THREE.Mesh(coinGeo,coinMat);m.rotation.x=Math.PI/2;m.position.set(LANES[l],1,-80);m.userData={type:'c',lane:l};
+  }
+  scene.add(m);items.push(m);
+}
+function start(){
+  items.forEach(function(m){scene.remove(m)});items=[];
+  lane=1;y=0;vy=0;speed=26;score=0;coins=0;spawnT=0;mile=0;alive=true;
+  $('overlay').classList.add('hide');
+}
+function end(msg){
+  alive=false;
+  if(score>bestV){bestV=Math.floor(score);try{localStorage.setItem('fob-best',bestV)}catch(e){}}
+  $('best').textContent=bestV;
+  $('title').textContent='O ônibus passou direto! 🚌💨';
+  $('msg').textContent=msg+' Você correu '+Math.floor(score)+' m e juntou '+coins+' moedinhas.';
+  $('go').textContent='Tentar o próximo ônibus';
+  $('overlay').classList.remove('hide');
+}
+function left(){if(alive&&lane>0)lane--}
+function right(){if(alive&&lane<2)lane++}
+function jump(){if(alive&&y<=0.001)vy=11}
+$('go').addEventListener('click',start);
+addEventListener('keydown',function(e){
+  if(e.code==='ArrowLeft'||e.code==='KeyA')left();
+  else if(e.code==='ArrowRight'||e.code==='KeyD')right();
+  else if(e.code==='ArrowUp'||e.code==='Space'||e.code==='KeyW'){e.preventDefault();jump();}
+  else if(e.code==='Enter'&&!alive)start();
+});
+var sx,sy;
+addEventListener('touchstart',function(e){sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+addEventListener('touchend',function(e){
+  var dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20)return;
+  if(Math.abs(dx)>Math.abs(dy)){dx<0?left():right();}else if(dy<0)jump();
+},{passive:true});
+
+var last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min((now-last)/1000,0.05);last=now;t+=dt;
+  var sp=alive?speed:8;
+  lines.forEach(function(m){m.position.z+=sp*dt;if(m.position.z>10)m.position.z-=160;});
+  bl.forEach(function(b){b.position.z+=sp*dt;if(b.position.z>14)b.position.z-=120;});
+  bus.position.y=Math.sin(t*6)*0.05;
+  if(alive){
+    speed+=dt*0.35;score+=dt*speed*0.5;
+    if(Math.floor(score/300)>mile){mile++;toast('Ônibus lotado! Corre pro próximo!');}
+    spawnT-=dt;if(spawnT<=0){spawn();spawnT=Math.max(0.4,1.2-speed*0.016);}
+    vy-=28*dt;y+=vy*dt;if(y<0){y=0;vy=0;}
+    for(var i=items.length-1;i>=0;i--){
+      var m=items[i];m.position.z+=speed*dt;
+      if(m.userData.type==='c')m.rotation.z+=dt*4;
+      if(Math.abs(m.position.z)<1.1&&m.userData.lane===lane){
+        if(m.userData.type==='o'&&y<1.0){end(m.userData.msg);}
+        else if(m.userData.type==='c'&&y<2){coins++;score+=50;toast(COINMSG[Math.floor(Math.random()*4)]);scene.remove(m);items.splice(i,1);continue;}
+      }
+      if(m.position.z>10){scene.remove(m);items.splice(i,1);}
+    }
+    $('score').textContent=Math.floor(score);$('coins').textContent=coins;
+  }
+  player.position.x+=(LANES[lane]-player.position.x)*Math.min(1,dt*14);
+  player.position.y=y+(alive&&y<=0.001?Math.abs(Math.sin(t*14))*0.12:0);
+  player.rotation.z=(player.position.x-LANES[lane])*0.2;
+  camera.position.set(player.position.x*0.5,5,8);
+  camera.lookAt(player.position.x*0.3,1,-8);
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
