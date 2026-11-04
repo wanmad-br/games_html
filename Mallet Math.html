@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mallet Math</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg1:#7fd4ff;--bg2:#ffe49a;--card:#ffffff;--text:#2a2350;--muted:#6b6590;--accent:#ff5c8a;--track:#e4e0f5;--shadow:rgba(42,35,80,.25);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#1b1650;--bg2:#40206b;--card:#2a2460;--text:#f4f1ff;--muted:#b6aee6;--track:#171244;--shadow:rgba(0,0,0,.5)}}
+:root[data-theme="dark"]{--bg1:#1b1650;--bg2:#40206b;--card:#2a2460;--text:#f4f1ff;--muted:#b6aee6;--track:#171244;--shadow:rgba(0,0,0,.5)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{font-family:'Fredoka','Trebuchet MS',system-ui,sans-serif;color:var(--text);background:linear-gradient(160deg,var(--bg1),var(--bg2));background-color:var(--bg1);display:flex;justify-content:center;user-select:none}
+#app{width:100%;max-width:540px;padding:14px;display:flex;flex-direction:column;gap:12px;position:relative}
+h1{margin:0;text-align:center;font-size:1.6rem;letter-spacing:.5px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card);border-radius:14px;padding:6px 8px;text-align:center;box-shadow:0 4px 0 var(--shadow)}
+.stat small{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase}
+.stat b{font-size:1.3rem}
+.timer{height:20px;background:var(--track);border-radius:12px;overflow:hidden;box-shadow:inset 0 2px 4px var(--shadow)}
+#bar{height:100%;width:100%;background:#3ddc84;border-radius:12px}
+.target{background:var(--card);border-radius:20px;padding:10px;text-align:center;box-shadow:0 5px 0 var(--shadow)}
+.target .t{font-size:2.6rem;font-weight:700;color:var(--accent);line-height:1}
+.target .s{color:var(--muted);font-size:1rem;margin-top:4px}
+.target .s b{color:var(--text)}
+.target.ok{animation:pop .4s}
+#board{display:grid;gap:10px;margin-top:4px}
+.block{position:relative;aspect-ratio:1.15;border:0;border-radius:12px;font:700 clamp(1.4rem,7vw,2.1rem) 'Fredoka',sans-serif;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.25);cursor:pointer;
+background:linear-gradient(rgba(255,255,255,.18) 0 0) 0 0/100% 4px no-repeat,hsl(var(--h) 75% 55%);box-shadow:0 6px 0 hsl(var(--h) 65% 35%);transition:transform .2s,opacity .25s,box-shadow .2s;animation:drop .35s backwards}
+.block::before{content:"";position:absolute;inset:0;border-radius:12px;background:repeating-linear-gradient(90deg,transparent 0 22%,rgba(0,0,0,.12) 22% 23%);pointer-events:none}
+.block:active{transform:translateY(4px);box-shadow:0 2px 0 hsl(var(--h) 65% 35%)}
+.block.broken{transform:scale(.7) rotate(-8deg);opacity:.22;box-shadow:none;filter:grayscale(.6)}
+.debris{position:absolute;left:50%;top:50%;width:12px;height:12px;border-radius:3px;background:hsl(var(--h) 75% 55%);pointer-events:none;animation:fly .6s ease-out forwards}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(20,15,50,.55);backdrop-filter:blur(3px);z-index:5;border-radius:0}
+.overlay.hide{display:none}
+.panel{background:var(--card);border-radius:24px;padding:26px 22px;text-align:center;width:100%;box-shadow:0 8px 0 var(--shadow)}
+.panel h2{margin:0 0 8px;font-size:2rem}
+.panel p{margin:6px 0;color:var(--muted)}
+.big{font-size:3rem;font-weight:700;color:var(--accent);line-height:1.1}
+button.go{margin-top:16px;font:700 1.3rem 'Fredoka',sans-serif;color:#fff;background:var(--accent);border:0;border-radius:16px;padding:12px 32px;cursor:pointer;box-shadow:0 5px 0 #b8335b}
+button.go:active{transform:translateY(4px);box-shadow:0 1px 0 #b8335b}
+#msg{position:absolute;left:0;right:0;top:34%;text-align:center;font-size:2.6rem;font-weight:700;color:#fff;text-shadow:0 4px 0 rgba(0,0,0,.35);pointer-events:none;opacity:0;z-index:4}
+#msg.show{animation:msg .7s}
+@keyframes drop{from{transform:translateY(-30px) scale(.8);opacity:0}}
+@keyframes pop{50%{transform:scale(1.06)}}
+@keyframes msg{0%{opacity:0;transform:scale(.5)}30%{opacity:1;transform:scale(1.15)}80%{opacity:1}100%{opacity:0}}
+@keyframes fly{to{transform:translate(var(--dx),var(--dy)) rotate(240deg) scale(.2);opacity:0}}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🔨 Mallet Math</h1>
+  <div class="stats">
+    <div class="stat"><small>Fase</small><b id="lv">1</b></div>
+    <div class="stat"><small>Pontos</small><b id="sc">0</b></div>
+    <div class="stat"><small>Recorde</small><b id="hi">0</b></div>
+  </div>
+  <div class="timer"><div id="bar"></div></div>
+  <div class="target" id="tg">
+    <div class="t">Alvo: <span id="target">0</span></div>
+    <div class="s">Soma atual: <b id="sum">0</b></div>
+  </div>
+  <div id="board"></div>
+  <div id="msg">Certo!</div>
+
+  <div class="overlay" id="start">
+    <div class="panel">
+      <h2>Mallet Math</h2>
+      <p>Quebre blocos até que a soma dos que restam seja igual ao alvo. Toque num bloco quebrado para restaurá-lo.</p>
+      <p>Seja rápido: o tempo é curto!</p>
+      <button class="go" id="btnStart">Começar</button>
+    </div>
+  </div>
+  <div class="overlay hide" id="over">
+    <div class="panel">
+      <h2>Game Over</h2>
+      <p id="why">O tempo acabou!</p>
+      <div class="big" id="oScore">0</div>
+      <p>pontos</p>
+      <p>Fases superadas: <b id="oLv">0</b></p>
+      <p>Recorde: <b id="oHi">0</b></p>
+      <p id="newRec" style="color:var(--accent);font-weight:700"></p>
+      <button class="go" id="btnRestart">Jogar de novo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s)};
+  var level=1,score=0,best=0,target=0,timeLeft=0,timeMax=0,last=0,raf=0,running=false,locked=false,blocks=[];
+  try{best=parseInt(localStorage.getItem('mallet_math_best'),10)||0}catch(e){}
+  $('#hi').textContent=best;
+
+  function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+
+  function genLevel(){
+    var n=Math.min(12,4+Math.floor((level-1)/2));
+    var max=Math.min(9+Math.floor(level*1.5),40);
+    timeMax=Math.max(4,8-(level-1)*0.25);
+    var nums=[];for(var i=0;i<n;i++)nums.push(rnd(1,max));
+    var idx=nums.map(function(_,i){return i}).sort(function(){return Math.random()-.5});
+    var k=rnd(2,Math.max(2,n-2));
+    target=0;for(var j=0;j<k;j++)target+=nums[idx[j]];
+    blocks=nums.map(function(v,i){return {v:v,broken:false,hue:rnd(0,330)}});
+  }
+
+  function render(){
+    var board=$('#board');board.innerHTML='';
+    var n=blocks.length;
+    board.style.gridTemplateColumns='repeat('+(n<=4?2:n<=6?3:4)+',1fr)';
+    blocks.forEach(function(b,i){
+      var el=document.createElement('button');
+      el.className='block';el.textContent=b.v;
+      el.style.setProperty('--h',b.hue);
+      el.style.animationDelay=(i*30)+'ms';
+      el.addEventListener('click',function(){toggle(i,el)});
+      board.appendChild(el);
+    });
+    $('#target').textContent=target;
+    $('#lv').textContent=level;
+    $('#sc').textContent=score;
+    updateSum();
+  }
+
+  function sum(){return blocks.reduce(function(s,b){return b.broken?s:s+b.v},0)}
+  function updateSum(){$('#sum').textContent=sum()}
+
+  function debris(el){
+    for(var i=0;i<6;i++){
+      var d=document.createElement('span');d.className='debris';
+      d.style.setProperty('--dx',rnd(-70,70)+'px');d.style.setProperty('--dy',rnd(-70,50)+'px');
+      el.appendChild(d);
+      setTimeout(function(x){return function(){x.remove()}}(d),650);
+    }
+  }
+
+  function toggle(i,el){
+    if(!running||locked)return;
+    var b=blocks[i];
+    b.broken=!b.broken;
+    el.classList.toggle('broken',b.broken);
+    el.style.animation='none';
+    if(b.broken)debris(el);
+    updateSum();
+    if(sum()===target)win();
+  }
+
+  function flash(text){
+    var m=$('#msg');m.textContent=text;m.classList.remove('show');void m.offsetWidth;m.classList.add('show');
+  }
+
+  function win(){
+    locked=true;
+    var bonus=Math.round(timeLeft*20);
+    score+=100+bonus+level*10;
+    $('#sc').textContent=score;
+    $('#tg').classList.add('ok');
+    flash('Certo! +'+(100+bonus+level*10));
+    setTimeout(function(){
+      $('#tg').classList.remove('ok');
+      level++;
+      startLevel();
+    },750);
+  }
+
+  function startLevel(){
+    genLevel();render();
+    timeLeft=timeMax;locked=false;last=performance.now();
+  }
+
+  function tick(t){
+    if(!running)return;
+    var dt=(t-last)/1000;last=t;
+    if(!locked){
+      timeLeft-=dt;
+      var p=Math.max(0,timeLeft/timeMax);
+      var bar=$('#bar');
+      bar.style.width=(p*100)+'%';
+      bar.style.background=p>.5?'#3ddc84':p>.25?'#ffc233':'#ff4d4d';
+      if(timeLeft<=0){gameOver();return}
+    }
+    raf=requestAnimationFrame(tick);
+  }
+
+  function gameOver(){
+    running=false;cancelAnimationFrame(raf);
+    var passed=level-1,rec=score>best;
+    if(rec){
+      best=score;
+      try{localStorage.setItem('mallet_math_best',String(best))}catch(e){}
+    }
+    $('#hi').textContent=best;
+    $('#oScore').textContent=score;
+    $('#oLv').textContent=passed;
+    $('#oHi').textContent=best;
+    $('#newRec').textContent=rec&&score>0?'🏆 Novo recorde!':'';
+    $('#over').classList.remove('hide');
+  }
+
+  function startGame(){
+    level=1;score=0;running=true;
+    $('#start').classList.add('hide');$('#over').classList.add('hide');
+    $('#bar').style.width='100%';
+    startLevel();
+    cancelAnimationFrame(raf);
+    raf=requestAnimationFrame(tick);
+  }
+
+  $('#btnStart').addEventListener('click',startGame);
+  $('#btnRestart').addEventListener('click',startGame);
+})();
+</script>
+</body>
+</html>
