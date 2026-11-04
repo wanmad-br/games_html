@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balloon Burst</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap">
+<style>
+  /* ===== Tokens (claro / escuro) ===== */
+  :root {
+    --sky-top: #8fd3ff; --sky-bot: #e8f7ff;
+    --ink: #1d2b53; --panel: #ffffff; --muted: #5b6b8c;
+    --accent: #ff5d73; --good: #2ecc8f; --bad: #ff4757; --bar: #ffb703;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --sky-top: #14204a; --sky-bot: #2c3f7a;
+      --ink: #f2f6ff; --panel: #243366; --muted: #a9b8e0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --sky-top: #14204a; --sky-bot: #2c3f7a;
+    --ink: #f2f6ff; --panel: #243366; --muted: #a9b8e0;
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: 'Baloo 2', system-ui, sans-serif;
+    color: var(--ink);
+    background: linear-gradient(var(--sky-top), var(--sky-bot));
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  #app { height: 100%; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; padding: 8px 12px; box-sizing: border-box; }
+
+  /* ===== HUD ===== */
+  #hud { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; font-size: clamp(15px, 4vw, 20px); }
+  .chip { background: var(--panel); padding: 2px 12px; border-radius: 999px; box-shadow: 0 2px 0 rgba(0,0,0,.12); white-space: nowrap; }
+  #rule { text-align: center; font-weight: 800; font-size: clamp(18px, 5vw, 28px); margin: 6px 0; min-height: 1.3em; }
+  #timebar { height: 14px; background: rgba(0,0,0,.15); border-radius: 999px; overflow: hidden; }
+  #timefill { height: 100%; width: 100%; background: var(--bar); border-radius: 999px; transform-origin: left; }
+
+  /* ===== Campo de jogo ===== */
+  #field { position: relative; flex: 1; margin-top: 8px; }
+  .balloon {
+    position: absolute; width: var(--size); height: calc(var(--size) * 1.2);
+    border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%;
+    background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.75) 0 8%, transparent 9%), var(--c);
+    box-shadow: inset -6px -8px 0 rgba(0,0,0,.14);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: calc(var(--size) * .42); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25);
+    cursor: pointer; animation: bob var(--dur) ease-in-out infinite alternate;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .balloon::after { /* nozinho + fio */
+    content: ""; position: absolute; bottom: -9px; left: 50%; width: 10px; height: 10px; background: var(--c);
+    transform: translateX(-50%) rotate(45deg); border-radius: 2px;
+  }
+  @keyframes bob { from { transform: translateY(-6px) rotate(-2deg); } to { transform: translateY(8px) rotate(2deg); } }
+  .balloon.pop { animation: pop .28s ease-out forwards; pointer-events: none; }
+  @keyframes pop { 0% { transform: scale(1); opacity: 1; } 40% { transform: scale(1.35); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+  .balloon.wrong { animation: shake .3s; }
+  @keyframes shake { 0%,100% { translate: 0 0; } 25% { translate: -8px 0; } 75% { translate: 8px 0; } }
+  .bit { position: absolute; width: 9px; height: 9px; border-radius: 50%; pointer-events: none; animation: fly .5s ease-out forwards; }
+  @keyframes fly { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+
+  /* ===== Flash vermelho de erro ===== */
+  #flash { position: fixed; inset: 0; background: #ff1f3d; opacity: 0; pointer-events: none; z-index: 4; }
+  #flash.on { animation: errFlash .6s ease-out; }
+  @keyframes errFlash { 0%, 40% { opacity: .65; } 20%, 60% { opacity: .1; } 100% { opacity: 0; } }
+
+  /* ===== Telas ===== */
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; background: rgba(20,32,74,.72); padding: 24px; z-index: 5; }
+  .screen.on { display: flex; }
+  .card { background: var(--panel); border-radius: 28px; padding: 28px 24px; max-width: 360px; width: 100%; box-shadow: 0 8px 0 rgba(0,0,0,.18); }
+  h1 { margin: 0; font-size: clamp(36px, 10vw, 52px); line-height: 1; color: var(--accent); }
+  h2 { margin: 0; font-size: 34px; }
+  p { margin: 6px 0; color: var(--muted); font-size: 17px; }
+  .stat { font-size: 22px; font-weight: 700; color: var(--ink); }
+  button {
+    font: inherit; font-weight: 800; font-size: 22px; color: #fff; background: var(--accent);
+    border: 0; border-radius: 999px; padding: 10px 34px; margin-top: 12px; cursor: pointer; box-shadow: 0 5px 0 rgba(0,0,0,.2);
+  }
+  button:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.2); }
+  button:focus-visible, .balloon:focus-visible { outline: 3px solid var(--bar); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { .balloon { animation: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <span class="chip" id="phase">Fase: 1</span>
+    <span class="chip" id="lives">❤️❤️❤️</span>
+    <span class="chip" id="best">Recorde: 0</span>
+  </div>
+  <div id="rule">&nbsp;</div>
+  <div id="timebar"><div id="timefill"></div></div>
+  <div id="field"></div>
+</div>
+
+<div id="flash"></div>
+
+<!-- Tela inicial -->
+<div class="screen on" id="startScreen">
+  <div class="card">
+    <h1>Balloon Burst</h1>
+    <p>Estoure os balões na ordem pedida antes que o tempo acabe. Errou? Perde uma vida!</p>
+    <div class="stat" id="startBest">Recorde: 0</div>
+    <button id="startBtn">Jogar</button>
+  </div>
+</div>
+
+<!-- Tela de Game Over -->
+<div class="screen" id="overScreen">
+  <div class="card">
+    <h2 id="overTitle">Fim de jogo</h2>
+    <p id="overReason"></p>
+    <div class="stat" id="overPhase"></div>
+    <div class="stat" id="overBest"></div>
+    <button id="retryBtn">Tentar de novo</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Balloon Burst — JavaScript puro
+   ============================================================ */
+const COLORS = ['#ff5d73','#ff9f1c','#2ec4b6','#4d96ff','#9b5de5','#f15bb5','#06a77d','#e76f51'];
+const MAX_LIVES = 3;
+const STORAGE_KEY = 'balloonBurstBest';
+
+const $ = id => document.getElementById(id);
+const field = $('field');
+
+/* Estado do jogo */
+let state = { phase: 1, lives: MAX_LIVES, order: [], next: 0, timeLimit: 0, timeLeft: 0, running: false, raf: 0, last: 0 };
+
+/* ---------- Recorde (localStorage com try/catch) ---------- */
+function loadBest() { try { return parseInt(localStorage.getItem(STORAGE_KEY), 10) || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem(STORAGE_KEY, String(v)); } catch (e) {} }
+let best = loadBest();
+function renderBest() { $('best').textContent = 'Recorde: ' + best; $('startBest').textContent = 'Recorde: ' + best; }
+
+/* ---------- Curva de dificuldade ---------- */
+function difficulty(phase) {
+  const count = Math.min(4 + Math.floor((phase - 1) * 0.8), 14);           // mais balões
+  const range = Math.max(count * 3 - Math.floor(phase * 1.5), count + 2);  // números mais próximos
+  const maxNum = 9 + phase * 4;                                            // números maiores
+  const time = Math.max(3.5, 4 + count * 0.9 - phase * 0.25);              // tempo mais curto
+  return { count, range, maxNum, time };
+}
+
+/* ---------- Geração da fase ---------- */
+function startPhase() {
+  const d = difficulty(state.phase);
+  // Números únicos: sorteia uma "janela" e embaralha
+  const base = Math.floor(Math.random() * Math.max(1, d.maxNum - d.range + 1)) + 1;
+  const pool = [];
+  for (let i = 0; i < d.range; i++) pool.push(base + i);
+  const nums = shuffle(pool).slice(0, d.count);
+
+  const ascending = Math.random() < 0.5;
+  state.order = [...nums].sort((a, b) => ascending ? a - b : b - a);
+  state.next = 0;
+  state.timeLimit = state.timeLeft = d.time;
+
+  $('rule').textContent = ascending ? '⬆️ Estoure do MENOR para o MAIOR' : '⬇️ Estoure do MAIOR para o MENOR';
+  $('phase').textContent = 'Fase: ' + state.phase;
+  renderLives();
+  field.innerHTML = '';
+  placeBalloons(nums);
+}
+
+/* Posiciona balões sem sobreposição (tentativas com distância mínima) */
+function placeBalloons(nums) {
+  const W = field.clientWidth, H = field.clientHeight;
+  const baseSize = Math.max(46, Math.min(96, Math.sqrt((W * H) / (nums.length * 3.2))));
+  const placed = [];
+  nums.forEach((n, i) => {
+    // Tamanho aleatório: de ~60% a ~130% do tamanho base (mínimo 40px para o toque)
+    const size = Math.max(40, baseSize * (0.6 + Math.random() * 0.7));
+    let x, y, tries = 0;
+    do {
+      x = Math.random() * (W - size);
+      y = Math.random() * (H - size * 1.4) + 6;
+      tries++;
+    } while (tries < 80 && placed.some(p => Math.hypot(p.x - x, p.y - y) < (size + p.s) / 2 * 0.95));
+    placed.push({ x, y, s: size });
+    const b = document.createElement('div');
+    b.className = 'balloon';
+    b.textContent = n;
+    b.dataset.n = n;
+    b.tabIndex = 0;
+    b.style.cssText = `--size:${size}px;--c:${COLORS[i % COLORS.length]};--dur:${(1.2 + Math.random()).toFixed(2)}s;left:${x}px;top:${y}px;animation-delay:${(-Math.random() * 2).toFixed(2)}s`;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); onBalloon(b); });
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') onBalloon(b); });
+    field.appendChild(b);
+  });
+}
+
+/* ---------- Interação ---------- */
+function onBalloon(b) {
+  if (!state.running || b.classList.contains('pop')) return;
+  if (Number(b.dataset.n) === state.order[state.next]) {
+    burst(b);
+    state.next++;
+    if (state.next >= state.order.length) phaseCleared();
+  } else {
+    b.classList.remove('wrong'); void b.offsetWidth; b.classList.add('wrong');
+    flashError();
+    state.lives--;
+    renderLives();
+    if (state.lives <= 0) endGame('Você ficou sem vidas!');
+  }
+}
+
+/* Efeito de estouro: balão cresce e some + partículas */
+function burst(b) {
+  const cx = b.offsetLeft + b.offsetWidth / 2, cy = b.offsetTop + b.offsetHeight / 2;
+  const color = getComputedStyle(b).getPropertyValue('--c');
+  b.classList.add('pop');
+  setTimeout(() => b.remove(), 300);
+  for (let i = 0; i < 10; i++) {
+    const p = document.createElement('i');
+    const a = (Math.PI * 2 * i) / 10, r = 40 + Math.random() * 30;
+    p.className = 'bit';
+    p.style.cssText = `left:${cx}px;top:${cy}px;background:${color};--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r}px`;
+    field.appendChild(p);
+    setTimeout(() => p.remove(), 520);
+  }
+}
+
+function phaseCleared() {
+  state.running = false;
+  cancelAnimationFrame(state.raf);
+  state.phase++;
+  if (state.phase - 1 > best) { best = state.phase - 1; saveBest(best); renderBest(); }
+  setTimeout(() => { startPhase(); state.running = true; state.last = performance.now(); state.raf = requestAnimationFrame(tick); }, 450);
+}
+
+/* ---------- Loop do cronômetro ---------- */
+function tick(now) {
+  if (!state.running) return;
+  const dt = (now - state.last) / 1000; state.last = now;
+  state.timeLeft -= dt;
+  const pct = Math.max(0, state.timeLeft / state.timeLimit);
+  const fill = $('timefill');
+  fill.style.transform = `scaleX(${pct})`;
+  fill.style.background = pct < 0.25 ? 'var(--bad)' : pct < 0.5 ? '#ff8c42' : 'var(--bar)';
+  if (state.timeLeft <= 0) return endGame('O tempo acabou!');
+  state.raf = requestAnimationFrame(tick);
+}
+
+/* ---------- Fluxo do jogo ---------- */
+function newGame() {
+  state.phase = 1; state.lives = MAX_LIVES;
+  $('startScreen').classList.remove('on'); $('overScreen').classList.remove('on');
+  startPhase();
+  state.running = true; state.last = performance.now();
+  state.raf = requestAnimationFrame(tick);
+}
+
+function endGame(reason) {
+  state.running = false; cancelAnimationFrame(state.raf);
+  const cleared = state.phase - 1;
+  if (cleared > best) { best = cleared; saveBest(best); }
+  renderBest();
+  $('overReason').textContent = reason;
+  $('overPhase').textContent = 'Fases concluídas: ' + cleared;
+  $('overBest').textContent = 'Recorde: ' + best;
+  $('overScreen').classList.add('on');
+}
+
+/* ---------- Utilitários ---------- */
+// Pisca a tela inteira em vermelho (e vibra no celular, se suportado)
+function flashError() {
+  const f = $('flash');
+  f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+  try { navigator.vibrate && navigator.vibrate(120); } catch (e) {}
+}
+function renderLives() { $('lives').textContent = '❤️'.repeat(state.lives) + '🖤'.repeat(MAX_LIVES - state.lives); }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+$('startBtn').addEventListener('click', newGame);
+$('retryBtn').addEventListener('click', newGame);
+renderBest();
+</script>
+</body>
+</html>
